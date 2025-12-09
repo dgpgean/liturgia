@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tab, LiturgyContent, EucharisticPrayer, SavedItem } from './types';
-import { generateDailyLiturgy } from './services/geminiService';
+import { fetchDailyLiturgy } from './services/liturgyService'; // Trocado para o novo serviço
 import { PRAYERS_DATA } from './constants';
 import { BookOpenIcon, CrossIcon, SaveIcon, BookmarkIcon, RefreshIcon, MaximizeIcon, ArrowLeftIcon, TypeIcon, PlusIcon, MinusIcon, DownloadIcon } from './components/Icons';
 import { AdBanner } from './components/AdBanner';
@@ -9,14 +9,14 @@ import { AdBanner } from './components/AdBanner';
 interface FocusedContent {
   title: string;
   subtitle?: string;
-  content: string | React.ReactNode; // Updated to allow ReactNode for rendered Psalm
-  itemToSave?: SavedItem; // If provided, allows saving from the focused view
+  content: string | React.ReactNode; 
+  itemToSave?: SavedItem; 
 }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LITURGY);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null); // Novo estado de erro
+  const [error, setError] = useState<string | null>(null);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -74,9 +74,7 @@ export default function App() {
 
     // PWA Install Prompt Listener
     const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
 
@@ -91,14 +89,11 @@ export default function App() {
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
-      // Show the install prompt
       deferredPrompt.prompt();
-      // Wait for the user to respond to the prompt
       const { outcome } = await deferredPrompt.userChoice;
       console.log(`User response to the install prompt: ${outcome}`);
       setDeferredPrompt(null);
     } else {
-      // If no prompt available (iOS or blocked), show manual instructions
       setShowInstallHelp(true);
     }
   };
@@ -109,7 +104,6 @@ export default function App() {
   };
 
   const saveItem = (item: SavedItem) => {
-    // Remove existing version if any (to allow updates)
     const otherItems = savedItems.filter(i => i.id !== item.id);
     const newItems = [...otherItems, item];
     saveToLocal(newItems);
@@ -130,12 +124,12 @@ export default function App() {
 
   const isSaved = (id: string) => savedItems.some(i => i.id === id);
 
-  // Função para buscar liturgia (separada do evento de clique)
+  // Função para buscar liturgia usando o novo serviço
   const fetchLiturgyForDate = useCallback(async (dateToFetch: string) => {
     setLoading(true);
-    setError(null); // Limpa erros anteriores
+    setError(null);
     try {
-      const data = await generateDailyLiturgy(dateToFetch);
+      const data = await fetchDailyLiturgy(dateToFetch); // Chamada da API Externa
       const newLiturgyData: LiturgyContent = {
         ...data,
         id: dateToFetch,
@@ -143,35 +137,18 @@ export default function App() {
         type: 'liturgy'
       };
       
-      // Só atualiza o estado se a data ainda for a mesma (caso o usuário mude rápido demais)
       setLiturgyData(prev => prev.id === dateToFetch ? newLiturgyData : prev);
-      
-      // --- AUTO SAVE FEATURE ---
       saveItem(newLiturgyData);
 
     } catch (err: any) {
-      // Se falhar e estivermos na mesma data, limpa os dados ou mostra erro
-      let errorMessage = "Erro ao gerar liturgia. ";
-      
-      if (err.message && err.message.includes("API Key is missing")) {
-          errorMessage = "Chave da API não configurada. Verifique as configurações.";
-      } else if (err.message && err.message.includes("403")) {
-          errorMessage = "Chave da API inválida ou expirada.";
-      } else if (err.message && err.message.includes("JSON")) {
-          errorMessage = "Erro ao processar dados da liturgia. Tente novamente.";
-      } else {
-          errorMessage = "Não foi possível carregar a liturgia. Verifique sua conexão.";
-      }
       console.error(err);
-      setError(errorMessage);
+      setError("Não foi possível carregar a liturgia do dia. Verifique sua conexão com a internet.");
     } finally {
       setLoading(false);
     }
   }, [savedItems]); 
 
-  // EFEITO: Monitora mudança de data ou conexão para carregar conteúdo
   useEffect(() => {
-    // 1. Verifica se já existe salvo localmente
     const savedLiturgy = savedItems.find(item => item.id === liturgyDate && item.type === 'liturgy');
     
     if (savedLiturgy) {
@@ -179,7 +156,6 @@ export default function App() {
         setLoading(false);
         setError(null);
     } else {
-        // 2. Se não existe, limpa a tela (para não mostrar dia anterior) e carrega da API se online
         setLiturgyData({
             id: liturgyDate,
             date: liturgyDate,
@@ -200,11 +176,10 @@ export default function App() {
             fetchLiturgyForDate(liturgyDate);
         }
     }
-  }, [liturgyDate, isOnline, savedItems.length]); // Monitora data, status online e quantidade de itens salvos
+  }, [liturgyDate, isOnline, savedItems.length]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLiturgyDate(e.target.value);
-    // O useEffect cuidará do carregamento
   };
 
   const getLiturgicalColorClass = (colorName?: string) => {
@@ -216,14 +191,14 @@ export default function App() {
     if (c.includes('rosa')) return 'bg-pink-400';
     if (c.includes('branco')) return 'bg-slate-100 border border-slate-300 !text-slate-800';
     if (c.includes('preto')) return 'bg-slate-900';
-    return 'bg-blue-600'; // fallback
+    return 'bg-blue-600'; 
   };
 
   const renderPsalmContent = (text: string, _isFullReader: boolean = false) => {
       if (!text) return null;
       return text.split('\n').map((line, index) => {
           const trimmed = line.trim();
-          const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:') || trimmed === 'R.';
+          const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:') || trimmed === 'R.' || trimmed.startsWith('—');
           
           if (!trimmed) return <div key={index} className="h-2"></div>;
 
@@ -423,7 +398,7 @@ export default function App() {
                  {loading && (
                     <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
                         <RefreshIcon spin className="w-4 h-4" />
-                        Gerando liturgia...
+                        Carregando liturgia...
                     </div>
                  )}
             </div>
