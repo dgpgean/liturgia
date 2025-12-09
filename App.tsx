@@ -27,6 +27,9 @@ export default function App() {
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   // Liturgy State
   const [liturgyDate, setLiturgyDate] = useState(new Date().toISOString().split('T')[0]);
@@ -58,6 +61,14 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Detect if app is already installed (Standalone mode)
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    setIsStandalone(isStandaloneMode);
+
+    // Detect iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+
     // PWA Install Prompt Listener
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the mini-infobar from appearing on mobile
@@ -76,15 +87,17 @@ export default function App() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    // Show the install prompt
-    deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
-    // Optionally, send analytics event with outcome of user choice
-    console.log(`User response to the install prompt: ${outcome}`);
-    // We've used the prompt, and can't use it again, throw it away
-    setDeferredPrompt(null);
+    if (deferredPrompt) {
+      // Show the install prompt
+      deferredPrompt.prompt();
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to the install prompt: ${outcome}`);
+      setDeferredPrompt(null);
+    } else {
+      // If no prompt available (iOS or blocked), show manual instructions
+      setShowInstallHelp(true);
+    }
   };
 
   const saveToLocal = (items: SavedItem[]) => {
@@ -228,6 +241,54 @@ export default function App() {
   };
 
   // --- Views ---
+
+  // Componente de Instruções de Instalação (Modal)
+  const InstallHelpModal = () => {
+    if (!showInstallHelp) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 relative animate-in zoom-in-95 duration-200">
+          <button 
+            onClick={() => setShowInstallHelp(false)}
+            className="absolute top-2 right-2 p-2 text-slate-400 hover:text-slate-600"
+          >
+            <CrossIcon className="w-5 h-5 transform rotate-45" />
+          </button>
+          
+          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <DownloadIcon className="w-5 h-5 text-blue-600" />
+            Instalar Aplicativo
+          </h3>
+          
+          {isIOS ? (
+            <div className="space-y-4">
+              <p className="text-slate-600 text-sm">Para instalar no iPhone/iPad:</p>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-slate-700 font-medium bg-slate-50 p-4 rounded-lg">
+                <li>Toque no botão <strong>Compartilhar</strong> <span className="inline-block align-middle bg-slate-200 p-1 rounded">⎋</span> do navegador.</li>
+                <li>Role para baixo e toque em <strong>Adicionar à Tela de Início</strong> <span className="inline-block align-middle bg-slate-200 p-1 rounded">+</span>.</li>
+                <li>Toque em <strong>Adicionar</strong> no canto superior direito.</li>
+              </ol>
+            </div>
+          ) : (
+             <div className="space-y-4">
+              <p className="text-slate-600 text-sm">Para instalar no Android/Chrome:</p>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-slate-700 font-medium bg-slate-50 p-4 rounded-lg">
+                <li>Toque no ícone de <strong>três pontos (Menu)</strong> do navegador.</li>
+                <li>Selecione <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</li>
+              </ol>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => setShowInstallHelp(false)}
+            className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            Entendi
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // Componente de Leitura Focada (Modal Full Screen)
   const FullScreenReader = () => {
@@ -594,6 +655,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-amber-100 selection:text-amber-900">
       
+      {/* Install Help Modal */}
+      {showInstallHelp && <InstallHelpModal />}
+
       {/* Full Screen Reader Modal */}
       {focusedContent && <FullScreenReader />}
 
@@ -612,8 +676,8 @@ export default function App() {
           
           {/* Main screen font controls and install button */}
           <div className="relative flex items-center gap-2">
-             {/* Install Button (Only visible if prompt is deferred) */}
-             {deferredPrompt && (
+             {/* Install Button (Always visible if not standalone) */}
+             {!isStandalone && (
                 <button 
                   onClick={handleInstallClick}
                   className="p-2 text-blue-200 hover:bg-blue-900 rounded-lg transition-colors bg-blue-900/50"
