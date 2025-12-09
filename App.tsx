@@ -13,8 +13,13 @@ interface FocusedContent {
   itemToSave?: SavedItem; 
 }
 
+// Sub-tabs for Liturgy
+type LiturgySubTab = 'FIRST' | 'PSALM' | 'SECOND' | 'GOSPEL';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LITURGY);
+  const [activeLiturgyTab, setActiveLiturgyTab] = useState<LiturgySubTab>('FIRST');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -128,6 +133,9 @@ export default function App() {
   const fetchLiturgyForDate = useCallback(async (dateToFetch: string) => {
     setLoading(true);
     setError(null);
+    // Reseta para a primeira aba ao carregar nova data
+    setActiveLiturgyTab('FIRST');
+    
     try {
       const data = await fetchDailyLiturgy(dateToFetch); // Chamada da API Externa
       const newLiturgyData: LiturgyContent = {
@@ -151,6 +159,9 @@ export default function App() {
   useEffect(() => {
     const savedLiturgy = savedItems.find(item => item.id === liturgyDate && item.type === 'liturgy');
     
+    // Reseta para a primeira leitura sempre que mudar a data, mesmo se for carregado do salvo
+    setActiveLiturgyTab('FIRST');
+
     if (savedLiturgy) {
         setLiturgyData(savedLiturgy as LiturgyContent);
         setLoading(false);
@@ -358,7 +369,7 @@ export default function App() {
   };
 
   const LiturgyView = () => (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-4 pb-24">
       
       {!isOnline && (
           <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-900 p-4 mb-4 rounded shadow-sm" role="alert">
@@ -384,6 +395,7 @@ export default function App() {
           </div>
       )}
 
+      {/* Header com Data e Info */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 sticky top-0 z-30 space-y-3">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex gap-2 w-full sm:w-auto">
@@ -398,7 +410,7 @@ export default function App() {
                  {loading && (
                     <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
                         <RefreshIcon spin className="w-4 h-4" />
-                        Carregando liturgia...
+                        Carregando...
                     </div>
                  )}
             </div>
@@ -427,132 +439,167 @@ export default function App() {
       <AdBanner />
 
       {!error && (
-        <div className="space-y-6 relative z-0">
-            {loading && !liturgyData.firstReadingBody && (
-                <div className="space-y-6 animate-pulse opacity-60">
-                    <div className="h-40 bg-slate-200 rounded-xl"></div>
-                    <div className="h-40 bg-slate-200 rounded-xl"></div>
-                    <div className="h-40 bg-slate-200 rounded-xl"></div>
-                </div>
-            )}
-
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Primeira Leitura</h3>
-                {liturgyData.firstReadingBody && (
-                    <button 
-                        onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)}
-                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                    >
-                        <MaximizeIcon className="w-5 h-5" />
-                    </button>
-                )}
-            </div>
-            
-                <>
-                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "..."}</p>
-                <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.firstReadingBody || (loading ? "Carregando..." : "Sem conteúdo.")}
-                </div>
-                {liturgyData.firstReadingBody && (
-                    <button onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-                )}
-                </>
-            </section>
-
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Salmo Responsorial</h3>
-                {liturgyData.psalmBody && (
-                    <button 
-                        onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)}
-                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                    >
-                        <MaximizeIcon className="w-5 h-5" />
-                    </button>
-                )}
-            </div>
-                <>
-                    <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.psalmRef}</p>
-                    <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                        {liturgyData.psalmBody 
-                            ? renderPsalmContent(liturgyData.psalmBody) 
-                            : <span className="text-slate-500 italic">{loading ? "Carregando..." : "..."}</span>
-                        }
-                    </div>
-                    {liturgyData.psalmBody && (
-                    <button onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-                )}
-                </>
-            </section>
-
-            {liturgyData.secondReadingBody && (
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Segunda Leitura</h3>
-                {liturgyData.secondReadingBody && (
-                    <button 
-                        onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)}
-                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                    >
-                        <MaximizeIcon className="w-5 h-5" />
-                    </button>
-                )}
-            </div>
-            
-                <>
-                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.secondReadingRef || ""}</p>
-                <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.secondReadingBody || ""}
-                </div>
-                {liturgyData.secondReadingBody && (
-                    <button onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-                )}
-                </>
-            </section>
-            )}
-
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-12 -mt-12 z-0"></div>
-            <div className="mb-4 pb-2 border-b border-red-100 relative z-10 flex justify-between items-center">
-                <h3 className="text-red-800 font-bold uppercase tracking-wide text-sm">Evangelho</h3>
-                {liturgyData.gospelBody && (
-                    <button 
-                        onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)}
-                        className="text-red-600 hover:bg-red-50 p-1 rounded transition-colors" title="Expandir"
-                    >
-                        <MaximizeIcon className="w-5 h-5" />
-                    </button>
-                )}
-            </div>
-            
-                <div className="relative z-10">
-                    <p className="text-red-600 text-sm font-bold mb-4">{liturgyData.gospelRef}</p>
-                    <div className={`reading-text text-slate-900 whitespace-pre-wrap line-clamp-[12] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                        {liturgyData.gospelBody || (loading ? "Carregando..." : "...")}
-                    </div>
-                    {liturgyData.gospelBody && (
-                    <button onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)} className="mt-2 text-sm text-red-600 hover:underline">Ler Evangelho completo...</button>
-                )}
-                </div>
-            </section>
-            
-            {liturgyData.gospelBody && (
-                <div className="fixed bottom-20 right-4 z-40">
-                    <button 
-                    onClick={() => toggleSaveItem(liturgyData)}
-                    className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
-                        isSaved(liturgyData.id) 
-                        ? 'bg-green-600 text-white' 
-                        : 'bg-blue-600 text-white'
+        <>
+            {/* Navegação por Abas (Sub-tabs) */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <button
+                    onClick={() => setActiveLiturgyTab('FIRST')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                        activeLiturgyTab === 'FIRST' 
+                        ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
-                    aria-label={isSaved(liturgyData.id) ? "Remover dos salvos" : "Salvar offline"}
+                >
+                    1ª Leitura
+                </button>
+                <button
+                    onClick={() => setActiveLiturgyTab('PSALM')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                        activeLiturgyTab === 'PSALM' 
+                        ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                >
+                    Salmo
+                </button>
+                {liturgyData.secondReadingBody && (
+                    <button
+                        onClick={() => setActiveLiturgyTab('SECOND')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                            activeLiturgyTab === 'SECOND' 
+                            ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
-                    {isSaved(liturgyData.id) ? <BookmarkIcon filled /> : <SaveIcon />}
+                        2ª Leitura
                     </button>
-                </div>
-            )}
-        </div>
+                )}
+                <button
+                    onClick={() => setActiveLiturgyTab('GOSPEL')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                        activeLiturgyTab === 'GOSPEL' 
+                        ? 'bg-red-100 text-red-800 border-red-200' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                >
+                    Evangelho
+                </button>
+            </div>
+
+            {/* Conteúdo das Abas */}
+            <div className="space-y-6 relative z-0">
+                {loading && !liturgyData.firstReadingBody ? (
+                    <div className="space-y-6 animate-pulse opacity-60">
+                        <div className="h-64 bg-slate-200 rounded-xl"></div>
+                    </div>
+                ) : (
+                    <>
+                        {activeLiturgyTab === 'FIRST' && (
+                            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                                    <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Primeira Leitura</h3>
+                                    {liturgyData.firstReadingBody && (
+                                        <button 
+                                            onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)}
+                                            className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                                        >
+                                            <MaximizeIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "..."}</p>
+                                <div className={`reading-text text-slate-800 whitespace-pre-wrap ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                                    {liturgyData.firstReadingBody || (loading ? "Carregando..." : "Sem conteúdo.")}
+                                </div>
+                            </section>
+                        )}
+
+                        {activeLiturgyTab === 'PSALM' && (
+                            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                                    <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Salmo Responsorial</h3>
+                                    {liturgyData.psalmBody && (
+                                        <button 
+                                            onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)}
+                                            className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                                        >
+                                            <MaximizeIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.psalmRef}</p>
+                                <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                                    {liturgyData.psalmBody 
+                                        ? renderPsalmContent(liturgyData.psalmBody) 
+                                        : <span className="text-slate-500 italic">{loading ? "Carregando..." : "..."}</span>
+                                    }
+                                </div>
+                            </section>
+                        )}
+
+                        {activeLiturgyTab === 'SECOND' && liturgyData.secondReadingBody && (
+                            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                                    <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Segunda Leitura</h3>
+                                    {liturgyData.secondReadingBody && (
+                                        <button 
+                                            onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)}
+                                            className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                                        >
+                                            <MaximizeIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.secondReadingRef || ""}</p>
+                                <div className={`reading-text text-slate-800 whitespace-pre-wrap ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                                    {liturgyData.secondReadingBody || ""}
+                                </div>
+                            </section>
+                        )}
+
+                        {activeLiturgyTab === 'GOSPEL' && (
+                            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-12 -mt-12 z-0"></div>
+                                <div className="mb-4 pb-2 border-b border-red-100 relative z-10 flex justify-between items-center">
+                                    <h3 className="text-red-800 font-bold uppercase tracking-wide text-sm">Evangelho</h3>
+                                    {liturgyData.gospelBody && (
+                                        <button 
+                                            onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)}
+                                            className="text-red-600 hover:bg-red-50 p-1 rounded transition-colors" title="Expandir"
+                                        >
+                                            <MaximizeIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="relative z-10">
+                                    <p className="text-red-600 text-sm font-bold mb-4">{liturgyData.gospelRef}</p>
+                                    <div className={`reading-text text-slate-900 whitespace-pre-wrap ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                                        {liturgyData.gospelBody || (loading ? "Carregando..." : "...")}
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+                        
+                        {/* Botão Flutuante de Salvar (Aparece independente da aba, pois salva o conjunto) */}
+                        {liturgyData.gospelBody && (
+                            <div className="fixed bottom-20 right-4 z-40">
+                                <button 
+                                onClick={() => toggleSaveItem(liturgyData)}
+                                className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
+                                    isSaved(liturgyData.id) 
+                                    ? 'bg-green-600 text-white' 
+                                    : 'bg-blue-600 text-white'
+                                }`}
+                                aria-label={isSaved(liturgyData.id) ? "Remover dos salvos" : "Salvar offline"}
+                                >
+                                {isSaved(liturgyData.id) ? <BookmarkIcon filled /> : <SaveIcon />}
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </>
       )}
       
       <AdBanner />
