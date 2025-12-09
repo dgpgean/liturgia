@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tab, LiturgyContent, EucharisticPrayer, SavedItem } from './types';
 import { generateDailyLiturgy } from './services/geminiService';
 import { PRAYERS_DATA } from './constants';
-import { BookOpenIcon, CrossIcon, SaveIcon, BookmarkIcon, RefreshIcon, MaximizeIcon, ArrowLeftIcon, TypeIcon, PlusIcon, MinusIcon } from './components/Icons';
+import { BookOpenIcon, CrossIcon, SaveIcon, BookmarkIcon, RefreshIcon, MaximizeIcon, ArrowLeftIcon, TypeIcon, PlusIcon, MinusIcon, DownloadIcon } from './components/Icons';
 import { AdBanner } from './components/AdBanner';
 
 // --- Type definition for focused content ---
@@ -24,6 +24,9 @@ export default function App() {
   
   // Focused View State (Read Mode)
   const [focusedContent, setFocusedContent] = useState<FocusedContent | null>(null);
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // Liturgy State
   const [liturgyDate, setLiturgyDate] = useState(new Date().toISOString().split('T')[0]);
@@ -55,11 +58,34 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // PWA Install Prompt Listener
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    // Optionally, send analytics event with outcome of user choice
+    console.log(`User response to the install prompt: ${outcome}`);
+    // We've used the prompt, and can't use it again, throw it away
+    setDeferredPrompt(null);
+  };
 
   const saveToLocal = (items: SavedItem[]) => {
     localStorage.setItem('catolico_saved_items', JSON.stringify(items));
@@ -152,7 +178,6 @@ export default function App() {
   };
 
   // Helper to render Psalm with highlighted Chorus (Refrão)
-  // FIXED: Renamed isFullReader to _isFullReader to ignore unused variable warning
   const renderPsalmContent = (text: string, _isFullReader: boolean = false) => {
       if (!text) return null;
       return text.split('\n').map((line, index) => {
@@ -585,8 +610,19 @@ export default function App() {
              </div>
           </div>
           
-          {/* Main screen font controls */}
-          <div className="relative">
+          {/* Main screen font controls and install button */}
+          <div className="relative flex items-center gap-2">
+             {/* Install Button (Only visible if prompt is deferred) */}
+             {deferredPrompt && (
+                <button 
+                  onClick={handleInstallClick}
+                  className="p-2 text-blue-200 hover:bg-blue-900 rounded-lg transition-colors bg-blue-900/50"
+                  title="Instalar App"
+                >
+                  <DownloadIcon className="w-6 h-6" />
+                </button>
+             )}
+
              <button 
                 onClick={() => setShowFontMenu(!showFontMenu)}
                 className="p-2 text-blue-200 hover:bg-blue-900 rounded-lg transition-colors"
