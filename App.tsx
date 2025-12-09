@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Tab, LiturgyContent, EucharisticPrayer, SavedItem } from './types';
 import { generateDailyLiturgy } from './services/geminiService';
 import { PRAYERS_DATA } from './constants';
@@ -129,20 +129,56 @@ export default function App() {
 
   const isSaved = (id: string) => savedItems.some(i => i.id === id);
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = e.target.value;
-    setLiturgyDate(newDate);
-    
-    // Check if we have this date saved locally (Offline support)
-    const savedLiturgy = savedItems.find(item => item.id === newDate && item.type === 'liturgy');
+  // Função para buscar liturgia (separada do evento de clique)
+  const fetchLiturgyForDate = useCallback(async (dateToFetch: string) => {
+    setLoading(true);
+    try {
+      const data = await generateDailyLiturgy(dateToFetch);
+      const newLiturgyData: LiturgyContent = {
+        ...data,
+        id: dateToFetch,
+        date: dateToFetch,
+        type: 'liturgy'
+      };
+      
+      // Só atualiza o estado se a data ainda for a mesma (caso o usuário mude rápido demais)
+      setLiturgyData(prev => prev.id === dateToFetch ? newLiturgyData : prev);
+      
+      // --- AUTO SAVE FEATURE ---
+      saveItem(newLiturgyData);
+
+    } catch (err: any) {
+      // Se falhar e estivermos na mesma data, limpa os dados ou mostra erro
+      let errorMessage = "Erro ao gerar liturgia. ";
+      
+      if (err.message && err.message.includes("API Key is missing")) {
+          errorMessage += "Chave da API não configurada.";
+      } else if (err.message && err.message.includes("403")) {
+          errorMessage += "Chave da API inválida.";
+      } else if (err.message && err.message.includes("JSON")) {
+          errorMessage += "Erro ao processar dados da liturgia.";
+      } else {
+          errorMessage += "Verifique sua conexão.";
+      }
+      console.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [savedItems]); // savedItems é dependência pois saveItem usa ele, mas saveItem está em closure... melhor usar functional update no saveItem se fosse complexo, mas aqui ok.
+
+  // EFEITO: Monitora mudança de data ou conexão para carregar conteúdo
+  useEffect(() => {
+    // 1. Verifica se já existe salvo localmente
+    const savedLiturgy = savedItems.find(item => item.id === liturgyDate && item.type === 'liturgy');
     
     if (savedLiturgy) {
         setLiturgyData(savedLiturgy as LiturgyContent);
+        setLoading(false);
     } else {
-        // Reset to empty state for the new date to avoid confusion
+        // 2. Se não existe, limpa a tela (para não mostrar dia anterior) e carrega da API se online
         setLiturgyData({
-            id: newDate,
-            date: newDate,
+            id: liturgyDate,
+            date: liturgyDate,
             liturgicalColor: '',
             liturgicalInfo: '',
             firstReadingRef: '',
@@ -155,43 +191,16 @@ export default function App() {
             gospelBody: '',
             type: 'liturgy'
         });
-    }
-  };
 
-  const handleGenerateLiturgy = async () => {
-    setLoading(true);
-    try {
-      const data = await generateDailyLiturgy(liturgyDate);
-      const newLiturgyData: LiturgyContent = {
-        ...data,
-        id: liturgyDate,
-        date: liturgyDate,
-        type: 'liturgy'
-      };
-      setLiturgyData(newLiturgyData);
-      
-      // --- AUTO SAVE FEATURE ---
-      // Salva automaticamente após gerar, para evitar novo consumo de API
-      saveItem(newLiturgyData);
-
-    } catch (err: any) {
-      let errorMessage = "Erro ao gerar liturgia. ";
-      
-      if (err.message && err.message.includes("API Key is missing")) {
-          errorMessage += "Chave da API não configurada.";
-      } else if (err.message && err.message.includes("403")) {
-          errorMessage += "Chave da API inválida.";
-      } else if (err.message && err.message.includes("JSON")) {
-          errorMessage += "Erro ao processar dados da liturgia.";
-      } else {
-          errorMessage += "Verifique sua conexão.";
-      }
-      
-      errorMessage += " Se você salvou esta liturgia anteriormente, selecione a data correspondente.";
-      alert(errorMessage);
-    } finally {
-      setLoading(false);
+        if (isOnline) {
+            fetchLiturgyForDate(liturgyDate);
+        }
     }
+  }, [liturgyDate, isOnline, savedItems.length]); // Monitora data, status online e quantidade de itens salvos (para detectar carregamento inicial)
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLiturgyDate(e.target.value);
+    // O useEffect cuidará do carregamento
   };
 
   // Helper to get color class based on Liturgical Color name
@@ -402,34 +411,17 @@ export default function App() {
                 type="date" 
                 value={liturgyDate}
                 onChange={handleDateChange}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-slate-700 w-full"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-slate-700 w-full font-medium"
                 />
             </div>
-            <div className="flex gap-2 w-full sm:w-auto items-center">
-                 {/* Save Button for Liturgy */}
-                {liturgyData.gospelBody && (
-                    <button
-                        onClick={() => saveItem(liturgyData)}
-                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-sm border ${
-                            isSaved(liturgyData.id)
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
-                        }`}
-                        title="Salvar para acesso offline"
-                    >
-                        {isSaved(liturgyData.id) ? <BookmarkIcon filled className="w-4 h-4"/> : <SaveIcon className="w-4 h-4" />}
-                        <span className="text-sm font-medium hidden sm:inline">Salvar</span>
-                    </button>
-                )}
-                
-                <button 
-                onClick={handleGenerateLiturgy}
-                disabled={loading || !isOnline}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                <RefreshIcon spin={loading} className="w-4 h-4" />
-                {loading ? 'Gerando...' : 'Carregar'}
-                </button>
+            {/* Status Indicator instead of Button */}
+            <div className="flex items-center gap-2">
+                 {loading && (
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                        <RefreshIcon spin className="w-4 h-4" />
+                        Gerando liturgia...
+                    </div>
+                 )}
             </div>
         </div>
 
@@ -458,6 +450,16 @@ export default function App() {
       <AdBanner />
 
       <div className="space-y-6 relative z-0">
+        
+        {/* Loading State Placeholder */}
+        {loading && !liturgyData.firstReadingBody && (
+            <div className="space-y-6 animate-pulse opacity-60">
+                <div className="h-40 bg-slate-200 rounded-xl"></div>
+                <div className="h-40 bg-slate-200 rounded-xl"></div>
+                <div className="h-40 bg-slate-200 rounded-xl"></div>
+            </div>
+        )}
+
         {/* First Reading */}
         <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
@@ -473,9 +475,9 @@ export default function App() {
           </div>
           
             <>
-              <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "Referência não definida"}</p>
+              <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "..."}</p>
               <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                {liturgyData.firstReadingBody || "Clique em 'Carregar' para preencher via IA."}
+                {liturgyData.firstReadingBody || (loading ? "Carregando..." : "Sem conteúdo.")}
               </div>
               {liturgyData.firstReadingBody && (
                   <button onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
@@ -502,7 +504,7 @@ export default function App() {
                 <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
                     {liturgyData.psalmBody 
                         ? renderPsalmContent(liturgyData.psalmBody) 
-                        : <span className="text-slate-500 italic">Conteúdo do Salmo...</span>
+                        : <span className="text-slate-500 italic">{loading ? "Carregando..." : "..."}</span>
                     }
                 </div>
                  {liturgyData.psalmBody && (
@@ -556,7 +558,7 @@ export default function App() {
             <div className="relative z-10">
                 <p className="text-red-600 text-sm font-bold mb-4">{liturgyData.gospelRef}</p>
                 <div className={`reading-text text-slate-900 whitespace-pre-wrap line-clamp-[12] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.gospelBody || "Conteúdo do Evangelho..."}
+                    {liturgyData.gospelBody || (loading ? "Carregando..." : "...")}
                 </div>
                  {liturgyData.gospelBody && (
                   <button onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)} className="mt-2 text-sm text-red-600 hover:underline">Ler Evangelho completo...</button>
