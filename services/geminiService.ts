@@ -17,19 +17,23 @@ export const generateDailyLiturgy = async (dateStr: string): Promise<GeminRespon
   Pesquise na web a liturgia diária católica EXATA (Leituras da Missa - CNBB) para a data: ${dateStr}.
   
   Certifique-se de encontrar:
-  1. A Primeira Leitura correta para este dia específico.
-  2. O Salmo Responsorial exato. IMPORTANTE: Identifique claramente o Refrão com o prefixo "R." no início da linha.
-  3. A Segunda Leitura (SE HOUVER - Comum em Domingos e Solenidades). Se não houver, deixe os campos vazios.
-  4. O Evangelho do dia.
-
-  IMPORTANTE: O Salmo muda conforme o dia litúrgico (solenidade, memória, ferial). Não alucine. Use as informações da pesquisa para garantir a precisão.
+  1. A Cor Litúrgica do dia (Verde, Roxo, Branco, Vermelho, Rosa ou Preto).
+  2. A identificação do dia litúrgico (ex: "3ª Feira da 2ª Semana do Tempo Comum" ou "Solenidade de São Pedro").
+  3. A Primeira Leitura correta.
+  4. O Salmo Responsorial. IMPORTANTE: 
+     - Identifique o refrão completo no início com "R.".
+     - DEPOIS DE CADA ESTROFE, insira uma linha contendo apenas "R." para indicar que a assembleia deve repetir o refrão.
+  5. A Segunda Leitura (SE HOUVER - Comum em Domingos e Solenidades). Se não houver, deixe os campos vazios.
+  6. O Evangelho do dia.
 
   Retorne APENAS um objeto JSON válido (sem markdown de código) com esta estrutura exata:
   {
+    "liturgicalColor": "Cor (ex: Verde)",
+    "liturgicalInfo": "Nome do dia (ex: Memória de Santa Luzia)",
     "firstReadingRef": "referência bíblica",
     "firstReadingBody": "texto completo",
     "psalmRef": "referência do salmo",
-    "psalmBody": "texto completo. O Refrão DEVE começar com 'R.' para ser formatado corretamente.",
+    "psalmBody": "texto completo formatado com 'R.' após cada estrofe",
     "secondReadingRef": "referência bíblica ou string vazia se não houver",
     "secondReadingBody": "texto completo ou string vazia se não houver",
     "gospelRef": "referência bíblica",

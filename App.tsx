@@ -36,6 +36,8 @@ export default function App() {
   const [liturgyData, setLiturgyData] = useState<LiturgyContent>({
     id: new Date().toISOString().split('T')[0],
     date: new Date().toISOString().split('T')[0],
+    liturgicalColor: '',
+    liturgicalInfo: '',
     firstReadingRef: '',
     firstReadingBody: '',
     psalmRef: '',
@@ -141,6 +143,8 @@ export default function App() {
         setLiturgyData({
             id: newDate,
             date: newDate,
+            liturgicalColor: '',
+            liturgicalInfo: '',
             firstReadingRef: '',
             firstReadingBody: '',
             psalmRef: '',
@@ -190,13 +194,26 @@ export default function App() {
     }
   };
 
+  // Helper to get color class based on Liturgical Color name
+  const getLiturgicalColorClass = (colorName?: string) => {
+    if (!colorName) return 'bg-slate-200';
+    const c = colorName.toLowerCase();
+    if (c.includes('verde')) return 'bg-green-600';
+    if (c.includes('vermelho')) return 'bg-red-600';
+    if (c.includes('roxo')) return 'bg-purple-700';
+    if (c.includes('rosa')) return 'bg-pink-400';
+    if (c.includes('branco')) return 'bg-slate-100 border border-slate-300 !text-slate-800';
+    if (c.includes('preto')) return 'bg-slate-900';
+    return 'bg-blue-600'; // fallback
+  };
+
   // Helper to render Psalm with highlighted Chorus (Refrão)
   const renderPsalmContent = (text: string, _isFullReader: boolean = false) => {
       if (!text) return null;
       return text.split('\n').map((line, index) => {
           const trimmed = line.trim();
-          // Verifica se é refrão (começa com R. ou R:)
-          const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:');
+          // Verifica se é refrão (começa com R. ou R:) ou é apenas "R." (instrução de resposta)
+          const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:') || trimmed === 'R.';
           
           if (!trimmed) return <div key={index} className="h-2"></div>;
 
@@ -376,7 +393,9 @@ export default function App() {
           </div>
       )}
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 sticky top-0 z-30">
+      {/* Control Bar & Liturgical Info */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 sticky top-0 z-30 space-y-3">
+        {/* Date and Load */}
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex gap-2 w-full sm:w-auto">
                 <input 
@@ -413,6 +432,26 @@ export default function App() {
                 </button>
             </div>
         </div>
+
+        {/* Liturgical Info Display */}
+        {liturgyData.liturgicalInfo && (
+            <div className="pt-2 border-t border-slate-50 flex items-center gap-3">
+                <div 
+                    className={`w-4 h-4 rounded-full shadow-sm flex-shrink-0 ${getLiturgicalColorClass(liturgyData.liturgicalColor)}`}
+                    title={`Cor Litúrgica: ${liturgyData.liturgicalColor}`}
+                ></div>
+                <div>
+                    <h2 className="text-sm font-bold text-slate-800 leading-tight">
+                        {liturgyData.liturgicalInfo}
+                    </h2>
+                    {liturgyData.liturgicalColor && (
+                        <span className="text-xs text-slate-400 capitalize">
+                            Cor: {liturgyData.liturgicalColor}
+                        </span>
+                    )}
+                </div>
+            </div>
+        )}
       </div>
 
       {/* Top Ad */}
@@ -610,6 +649,12 @@ export default function App() {
                     <h3 className="font-bold text-slate-800 text-lg">
                         {item.type === 'liturgy' ? `Liturgia de ${(item as LiturgyContent).date}` : (item as EucharisticPrayer).title}
                     </h3>
+                    {/* Exibir dia litúrgico nos salvos se disponível */}
+                    {item.type === 'liturgy' && (item as LiturgyContent).liturgicalInfo && (
+                       <p className="text-xs text-slate-500 mt-1 italic">
+                           {(item as LiturgyContent).liturgicalInfo}
+                       </p>
+                    )}
                 </div>
                 <button 
                   onClick={() => removeItem(item.id)}

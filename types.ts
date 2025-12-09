@@ -7,6 +7,8 @@ export enum Tab {
 export interface LiturgyContent {
   id: string; // usually date string YYYY-MM-DD
   date: string;
+  liturgicalColor?: string; // Novo: Ex: "Verde", "Roxo"
+  liturgicalInfo?: string;  // Novo: Ex: "2ª Feira da 1ª Semana do Advento"
   firstReadingRef: string;
   firstReadingBody: string;
   psalmRef: string;
@@ -28,6 +30,8 @@ export interface EucharisticPrayer {
 export type SavedItem = LiturgyContent | EucharisticPrayer;
 
 export interface GeminResponseSchema {
+  liturgicalColor: string;
+  liturgicalInfo: string;
   firstReadingRef: string;
   firstReadingBody: string;
   psalmRef: string;
