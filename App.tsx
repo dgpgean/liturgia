@@ -152,7 +152,8 @@ export default function App() {
   };
 
   // Helper to render Psalm with highlighted Chorus (Refrão)
-  const renderPsalmContent = (text: string, isFullReader: boolean = false) => {
+  // FIXED: Renamed isFullReader to _isFullReader to ignore unused variable warning
+  const renderPsalmContent = (text: string, _isFullReader: boolean = false) => {
       if (!text) return null;
       return text.split('\n').map((line, index) => {
           const trimmed = line.trim();
