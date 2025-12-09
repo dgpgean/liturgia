@@ -1,14 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { GeminResponseSchema } from '../types';
 
-const apiKey = process.env.API_KEY;
-
 export const generateDailyLiturgy = async (dateStr: string): Promise<GeminResponseSchema> => {
-  if (!apiKey) {
-    throw new Error("API Key not found");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // Prompt otimizado para usar Search Grounding
   const prompt = `
