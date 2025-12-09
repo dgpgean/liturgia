@@ -2,7 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { GeminResponseSchema } from '../types';
 
 export const generateDailyLiturgy = async (dateStr: string): Promise<GeminResponseSchema> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // @ts-ignore - Vite uses import.meta.env, ignore TS warning if types aren't fully loaded
+  const apiKey = import.meta.env.VITE_API_KEY;
+  
+  if (!apiKey) {
+    console.warn("API Key is missing. Ensure VITE_API_KEY is set in your environment variables.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
   // Prompt otimizado para usar Search Grounding
   const prompt = `
