@@ -33,6 +33,8 @@ export default function App() {
     firstReadingBody: '',
     psalmRef: '',
     psalmBody: '',
+    secondReadingRef: '',
+    secondReadingBody: '',
     gospelRef: '',
     gospelBody: '',
     type: 'liturgy'
@@ -92,6 +94,8 @@ export default function App() {
             firstReadingBody: '',
             psalmRef: '',
             psalmBody: '',
+            secondReadingRef: '',
+            secondReadingBody: '',
             gospelRef: '',
             gospelBody: '',
             type: 'liturgy'
@@ -110,8 +114,21 @@ export default function App() {
         type: 'liturgy'
       };
       setLiturgyData(newLiturgyData);
-    } catch (err) {
-      alert("Erro ao gerar liturgia. Verifique sua conexão. Se você salvou esta liturgia anteriormente, selecione a data correspondente.");
+    } catch (err: any) {
+      let errorMessage = "Erro ao gerar liturgia. ";
+      
+      if (err.message && err.message.includes("API Key is missing")) {
+          errorMessage += "Chave da API não configurada.";
+      } else if (err.message && err.message.includes("403")) {
+          errorMessage += "Chave da API inválida.";
+      } else if (err.message && err.message.includes("JSON")) {
+          errorMessage += "Erro ao processar dados da liturgia.";
+      } else {
+          errorMessage += "Verifique sua conexão.";
+      }
+      
+      errorMessage += " Se você salvou esta liturgia anteriormente, selecione a data correspondente.";
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -307,6 +324,33 @@ export default function App() {
               )}
             </>
         </section>
+
+        {/* Second Reading (Conditional) */}
+        {liturgyData.secondReadingBody && (
+        <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+          <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+            <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Segunda Leitura</h3>
+               {liturgyData.secondReadingBody && (
+                <button 
+                    onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)}
+                    className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                >
+                    <MaximizeIcon className="w-5 h-5" />
+                </button>
+               )}
+          </div>
+          
+            <>
+              <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.secondReadingRef || ""}</p>
+              <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                {liturgyData.secondReadingBody || ""}
+              </div>
+              {liturgyData.secondReadingBody && (
+                  <button onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
+              )}
+            </>
+        </section>
+        )}
 
         {/* Gospel */}
         <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">

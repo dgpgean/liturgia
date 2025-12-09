@@ -19,7 +19,8 @@ export const generateDailyLiturgy = async (dateStr: string): Promise<GeminRespon
   Certifique-se de encontrar:
   1. A Primeira Leitura correta para este dia específico.
   2. O Salmo Responsorial exato (atenção ao refrão e numeração correta para o dia).
-  3. O Evangelho do dia.
+  3. A Segunda Leitura (SE HOUVER - Comum em Domingos e Solenidades). Se não houver, deixe os campos vazios.
+  4. O Evangelho do dia.
 
   IMPORTANTE: O Salmo muda conforme o dia litúrgico (solenidade, memória, ferial). Não alucine. Use as informações da pesquisa para garantir a precisão.
 
@@ -29,6 +30,8 @@ export const generateDailyLiturgy = async (dateStr: string): Promise<GeminRespon
     "firstReadingBody": "texto completo",
     "psalmRef": "referência do salmo",
     "psalmBody": "texto completo com refrão",
+    "secondReadingRef": "referência bíblica ou string vazia se não houver",
+    "secondReadingBody": "texto completo ou string vazia se não houver",
     "gospelRef": "referência bíblica",
     "gospelBody": "texto completo"
   }

@@ -32,6 +32,8 @@ export interface GeminResponseSchema {
   firstReadingBody: string;
   psalmRef: string;
   psalmBody: string;
+  secondReadingRef?: string;
+  secondReadingBody?: string;
   gospelRef: string;
   gospelBody: string;
 }
