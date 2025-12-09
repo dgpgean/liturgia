@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 interface AdBannerProps {
   className?: string;
@@ -6,9 +6,10 @@ interface AdBannerProps {
   format?: 'auto' | 'fluid' | 'rectangle';
 }
 
-export const AdBanner: React.FC<AdBannerProps> = ({ className, slotId, format = 'auto' }) => {
+// Removido slotId e format da desestruturação pois não estão sendo usados no momento (código comentado)
+export const AdBanner: React.FC<AdBannerProps> = ({ className }) => {
   
-  // No futuro, quando tiver o AdSense real, descomente este useEffect para carregar o anúncio
+  // No futuro, quando tiver o AdSense real, você pode reativar o useEffect e os props
   /*
   useEffect(() => {
     try {
@@ -24,6 +25,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ className, slotId, format = 
     <div className={`w-full my-6 flex justify-center items-center ${className}`}>
       {/* 
         ESTRUTURA REAL DO ADSENSE (Descomentar e usar quando tiver o ID)
+        Lembre-se de adicionar slotId e format de volta nos props acima quando descomentar.
         <ins className="adsbygoogle"
              style={{ display: 'block', width: '100%' }}
              data-ad-client="ca-pub-SEU_PUBLISHER_ID"
