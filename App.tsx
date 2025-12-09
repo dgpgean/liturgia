@@ -9,7 +9,7 @@ import { AdBanner } from './components/AdBanner';
 interface FocusedContent {
   title: string;
   subtitle?: string;
-  content: string;
+  content: string | React.ReactNode; // Updated to allow ReactNode for rendered Psalm
   itemToSave?: SavedItem; // If provided, allows saving from the focused view
 }
 
@@ -17,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LITURGY);
   const [loading, setLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // Font Size State (1-5, default 3)
   const [fontSizeLevel, setFontSizeLevel] = useState(3);
@@ -41,12 +42,23 @@ export default function App() {
   });
   const [showFontMenu, setShowFontMenu] = useState(false);
 
-  // Load saved items on mount
+  // Load saved items on mount and setup online listener
   useEffect(() => {
     const saved = localStorage.getItem('catolico_saved_items');
     if (saved) {
       setSavedItems(JSON.parse(saved));
     }
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const saveToLocal = (items: SavedItem[]) => {
@@ -114,6 +126,11 @@ export default function App() {
         type: 'liturgy'
       };
       setLiturgyData(newLiturgyData);
+      
+      // --- AUTO SAVE FEATURE ---
+      // Salva automaticamente após gerar, para evitar novo consumo de API
+      saveItem(newLiturgyData);
+
     } catch (err: any) {
       let errorMessage = "Erro ao gerar liturgia. ";
       
@@ -134,7 +151,28 @@ export default function App() {
     }
   };
 
-  const openReader = (title: string, content: string, subtitle?: string, itemToSave?: SavedItem) => {
+  // Helper to render Psalm with highlighted Chorus (Refrão)
+  const renderPsalmContent = (text: string, isFullReader: boolean = false) => {
+      if (!text) return null;
+      return text.split('\n').map((line, index) => {
+          const trimmed = line.trim();
+          // Verifica se é refrão (começa com R. ou R:)
+          const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:');
+          
+          if (!trimmed) return <div key={index} className="h-2"></div>;
+
+          return (
+              <div 
+                key={index} 
+                className={`${isRefrao ? 'text-red-700 font-bold pl-0' : 'text-slate-700 pl-4'} mb-1`}
+              >
+                  {line}
+              </div>
+          );
+      });
+  };
+
+  const openReader = (title: string, content: string | React.ReactNode, subtitle?: string, itemToSave?: SavedItem) => {
       setFocusedContent({ title, content, subtitle, itemToSave });
   };
 
@@ -170,6 +208,7 @@ export default function App() {
     if (!focusedContent) return null;
     
     const isPrayer = focusedContent.itemToSave?.type === 'prayer';
+    const isPsalm = focusedContent.subtitle === "Salmo Responsorial";
 
     return (
       <div className="fixed inset-0 bg-white z-50 overflow-y-auto animate-in slide-in-from-bottom-5 duration-300">
@@ -218,11 +257,19 @@ export default function App() {
             {focusedContent.title}
           </h2>
           
-          <div 
-            // CRITICAL FIX: If it is a prayer (HTML), do NOT use whitespace-pre-wrap, otherwise HTML newlines create massive gaps.
-            className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)} text-slate-800 font-serif ${isPrayer ? 'whitespace-normal' : 'whitespace-pre-wrap'}`}
-            dangerouslySetInnerHTML={{ __html: focusedContent.content }}
-          />
+          <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)} text-slate-800 font-serif`}>
+             {isPsalm && typeof focusedContent.content === 'string' ? (
+                 // Render Psalm with Highlight logic
+                 renderPsalmContent(focusedContent.content, true)
+             ) : (
+                // Render Normal Content
+                 isPrayer && typeof focusedContent.content === 'string' ? (
+                    <div className="whitespace-normal" dangerouslySetInnerHTML={{ __html: focusedContent.content }} />
+                 ) : (
+                    <div className="whitespace-pre-wrap">{focusedContent.content}</div>
+                 )
+             )}
+          </div>
           
           {/* Ad at end of reading */}
           <AdBanner />
@@ -233,6 +280,15 @@ export default function App() {
 
   const LiturgyView = () => (
     <div className="space-y-6 pb-24">
+      
+      {/* Offline Warning Banner */}
+      {!isOnline && (
+          <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-900 p-4 mb-4 rounded shadow-sm" role="alert">
+            <p className="font-bold text-sm">Você está offline.</p>
+            <p className="text-xs">Exibindo conteúdo salvo. Algumas funcionalidades podem não estar disponíveis.</p>
+          </div>
+      )}
+
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 sticky top-0 z-30">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex gap-2 w-full sm:w-auto">
@@ -262,8 +318,8 @@ export default function App() {
                 
                 <button 
                 onClick={handleGenerateLiturgy}
-                disabled={loading}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                disabled={loading || !isOnline}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                 <RefreshIcon spin={loading} className="w-4 h-4" />
                 {loading ? 'Gerando...' : 'Carregar'}
@@ -316,8 +372,12 @@ export default function App() {
           </div>
             <>
                 <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.psalmRef}</p>
-                <div className={`reading-text text-slate-700 italic whitespace-pre-wrap line-clamp-[8] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.psalmBody || "Conteúdo do Salmo..."}
+                {/* Special rendering for Psalm to highlight 'R.' */}
+                <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                    {liturgyData.psalmBody 
+                        ? renderPsalmContent(liturgyData.psalmBody) 
+                        : <span className="text-slate-500 italic">Conteúdo do Salmo...</span>
+                    }
                 </div>
                  {liturgyData.psalmBody && (
                   <button onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
