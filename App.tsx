@@ -16,6 +16,7 @@ interface FocusedContent {
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LITURGY);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null); // Novo estado de erro
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -132,6 +133,7 @@ export default function App() {
   // Função para buscar liturgia (separada do evento de clique)
   const fetchLiturgyForDate = useCallback(async (dateToFetch: string) => {
     setLoading(true);
+    setError(null); // Limpa erros anteriores
     try {
       const data = await generateDailyLiturgy(dateToFetch);
       const newLiturgyData: LiturgyContent = {
@@ -152,19 +154,20 @@ export default function App() {
       let errorMessage = "Erro ao gerar liturgia. ";
       
       if (err.message && err.message.includes("API Key is missing")) {
-          errorMessage += "Chave da API não configurada.";
+          errorMessage = "Chave da API não configurada. Verifique as configurações.";
       } else if (err.message && err.message.includes("403")) {
-          errorMessage += "Chave da API inválida.";
+          errorMessage = "Chave da API inválida ou expirada.";
       } else if (err.message && err.message.includes("JSON")) {
-          errorMessage += "Erro ao processar dados da liturgia.";
+          errorMessage = "Erro ao processar dados da liturgia. Tente novamente.";
       } else {
-          errorMessage += "Verifique sua conexão.";
+          errorMessage = "Não foi possível carregar a liturgia. Verifique sua conexão.";
       }
-      console.error(errorMessage);
+      console.error(err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [savedItems]); // savedItems é dependência pois saveItem usa ele, mas saveItem está em closure... melhor usar functional update no saveItem se fosse complexo, mas aqui ok.
+  }, [savedItems]); 
 
   // EFEITO: Monitora mudança de data ou conexão para carregar conteúdo
   useEffect(() => {
@@ -174,6 +177,7 @@ export default function App() {
     if (savedLiturgy) {
         setLiturgyData(savedLiturgy as LiturgyContent);
         setLoading(false);
+        setError(null);
     } else {
         // 2. Se não existe, limpa a tela (para não mostrar dia anterior) e carrega da API se online
         setLiturgyData({
@@ -196,14 +200,13 @@ export default function App() {
             fetchLiturgyForDate(liturgyDate);
         }
     }
-  }, [liturgyDate, isOnline, savedItems.length]); // Monitora data, status online e quantidade de itens salvos (para detectar carregamento inicial)
+  }, [liturgyDate, isOnline, savedItems.length]); // Monitora data, status online e quantidade de itens salvos
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLiturgyDate(e.target.value);
     // O useEffect cuidará do carregamento
   };
 
-  // Helper to get color class based on Liturgical Color name
   const getLiturgicalColorClass = (colorName?: string) => {
     if (!colorName) return 'bg-slate-200';
     const c = colorName.toLowerCase();
@@ -216,12 +219,10 @@ export default function App() {
     return 'bg-blue-600'; // fallback
   };
 
-  // Helper to render Psalm with highlighted Chorus (Refrão)
   const renderPsalmContent = (text: string, _isFullReader: boolean = false) => {
       if (!text) return null;
       return text.split('\n').map((line, index) => {
           const trimmed = line.trim();
-          // Verifica se é refrão (começa com R. ou R:) ou é apenas "R." (instrução de resposta)
           const isRefrao = trimmed.startsWith('R.') || trimmed.startsWith('R:') || trimmed === 'R.';
           
           if (!trimmed) return <div key={index} className="h-2"></div>;
@@ -266,9 +267,6 @@ export default function App() {
     }
   };
 
-  // --- Views ---
-
-  // Componente de Instruções de Instalação (Modal)
   const InstallHelpModal = () => {
     if (!showInstallHelp) return null;
     return (
@@ -316,7 +314,6 @@ export default function App() {
     );
   };
 
-  // Componente de Leitura Focada (Modal Full Screen)
   const FullScreenReader = () => {
     if (!focusedContent) return null;
     
@@ -325,7 +322,6 @@ export default function App() {
 
     return (
       <div className="fixed inset-0 bg-white z-50 overflow-y-auto animate-in slide-in-from-bottom-5 duration-300">
-        {/* Sticky Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-slate-100 p-4 flex items-center justify-between shadow-sm z-50">
           <button 
             onClick={() => setFocusedContent(null)}
@@ -359,7 +355,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="max-w-2xl mx-auto p-6 pb-20">
           {focusedContent.subtitle && (
             <div className="text-sm font-bold tracking-widest text-slate-400 uppercase mb-2">
@@ -372,10 +367,8 @@ export default function App() {
           
           <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)} text-slate-800 font-serif`}>
              {isPsalm && typeof focusedContent.content === 'string' ? (
-                 // Render Psalm with Highlight logic
                  renderPsalmContent(focusedContent.content, true)
              ) : (
-                // Render Normal Content
                  isPrayer && typeof focusedContent.content === 'string' ? (
                     <div className="whitespace-normal" dangerouslySetInnerHTML={{ __html: focusedContent.content }} />
                  ) : (
@@ -383,8 +376,6 @@ export default function App() {
                  )
              )}
           </div>
-          
-          {/* Ad at end of reading */}
           <AdBanner />
         </div>
       </div>
@@ -394,7 +385,6 @@ export default function App() {
   const LiturgyView = () => (
     <div className="space-y-6 pb-24">
       
-      {/* Offline Warning Banner */}
       {!isOnline && (
           <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-900 p-4 mb-4 rounded shadow-sm" role="alert">
             <p className="font-bold text-sm">Você está offline.</p>
@@ -402,9 +392,24 @@ export default function App() {
           </div>
       )}
 
-      {/* Control Bar & Liturgical Info */}
+      {/* Error State */}
+      {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center space-y-4">
+              <div className="text-red-600 mb-2">
+                  <CrossIcon className="w-8 h-8 mx-auto opacity-50" />
+              </div>
+              <p className="text-red-800 font-medium">{error}</p>
+              <button 
+                onClick={() => fetchLiturgyForDate(liturgyDate)}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 mx-auto"
+              >
+                  <RefreshIcon className="w-4 h-4" />
+                  Tentar Novamente
+              </button>
+          </div>
+      )}
+
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 sticky top-0 z-30 space-y-3">
-        {/* Date and Load */}
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex gap-2 w-full sm:w-auto">
                 <input 
@@ -414,7 +419,6 @@ export default function App() {
                 className="border border-slate-300 rounded-lg px-3 py-2 text-slate-700 w-full font-medium"
                 />
             </div>
-            {/* Status Indicator instead of Button */}
             <div className="flex items-center gap-2">
                  {loading && (
                     <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
@@ -425,7 +429,6 @@ export default function App() {
             </div>
         </div>
 
-        {/* Liturgical Info Display */}
         {liturgyData.liturgicalInfo && (
             <div className="pt-2 border-t border-slate-50 flex items-center gap-3">
                 <div 
@@ -446,154 +449,144 @@ export default function App() {
         )}
       </div>
 
-      {/* Top Ad */}
       <AdBanner />
 
-      <div className="space-y-6 relative z-0">
-        
-        {/* Loading State Placeholder */}
-        {loading && !liturgyData.firstReadingBody && (
-            <div className="space-y-6 animate-pulse opacity-60">
-                <div className="h-40 bg-slate-200 rounded-xl"></div>
-                <div className="h-40 bg-slate-200 rounded-xl"></div>
-                <div className="h-40 bg-slate-200 rounded-xl"></div>
-            </div>
-        )}
-
-        {/* First Reading */}
-        <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-            <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Primeira Leitura</h3>
-               {liturgyData.firstReadingBody && (
-                <button 
-                    onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)}
-                    className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                >
-                    <MaximizeIcon className="w-5 h-5" />
-                </button>
-               )}
-          </div>
-          
-            <>
-              <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "..."}</p>
-              <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                {liturgyData.firstReadingBody || (loading ? "Carregando..." : "Sem conteúdo.")}
-              </div>
-              {liturgyData.firstReadingBody && (
-                  <button onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-              )}
-            </>
-        </section>
-
-        {/* Psalm */}
-        <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-           <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-            <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Salmo Responsorial</h3>
-             {liturgyData.psalmBody && (
-                <button 
-                    onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)}
-                    className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                >
-                    <MaximizeIcon className="w-5 h-5" />
-                </button>
-            )}
-          </div>
-            <>
-                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.psalmRef}</p>
-                {/* Special rendering for Psalm to highlight 'R.' */}
-                <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.psalmBody 
-                        ? renderPsalmContent(liturgyData.psalmBody) 
-                        : <span className="text-slate-500 italic">{loading ? "Carregando..." : "..."}</span>
-                    }
+      {!error && (
+        <div className="space-y-6 relative z-0">
+            {loading && !liturgyData.firstReadingBody && (
+                <div className="space-y-6 animate-pulse opacity-60">
+                    <div className="h-40 bg-slate-200 rounded-xl"></div>
+                    <div className="h-40 bg-slate-200 rounded-xl"></div>
+                    <div className="h-40 bg-slate-200 rounded-xl"></div>
                 </div>
-                 {liturgyData.psalmBody && (
-                  <button onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-              )}
-            </>
-        </section>
-
-        {/* Second Reading (Conditional) */}
-        {liturgyData.secondReadingBody && (
-        <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
-            <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Segunda Leitura</h3>
-               {liturgyData.secondReadingBody && (
-                <button 
-                    onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)}
-                    className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
-                >
-                    <MaximizeIcon className="w-5 h-5" />
-                </button>
-               )}
-          </div>
-          
-            <>
-              <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.secondReadingRef || ""}</p>
-              <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                {liturgyData.secondReadingBody || ""}
-              </div>
-              {liturgyData.secondReadingBody && (
-                  <button onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
-              )}
-            </>
-        </section>
-        )}
-
-        {/* Gospel */}
-        <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-12 -mt-12 z-0"></div>
-           <div className="mb-4 pb-2 border-b border-red-100 relative z-10 flex justify-between items-center">
-            <h3 className="text-red-800 font-bold uppercase tracking-wide text-sm">Evangelho</h3>
-             {liturgyData.gospelBody && (
-                <button 
-                    onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)}
-                    className="text-red-600 hover:bg-red-50 p-1 rounded transition-colors" title="Expandir"
-                >
-                    <MaximizeIcon className="w-5 h-5" />
-                </button>
             )}
-          </div>
-          
-            <div className="relative z-10">
-                <p className="text-red-600 text-sm font-bold mb-4">{liturgyData.gospelRef}</p>
-                <div className={`reading-text text-slate-900 whitespace-pre-wrap line-clamp-[12] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
-                    {liturgyData.gospelBody || (loading ? "Carregando..." : "...")}
-                </div>
-                 {liturgyData.gospelBody && (
-                  <button onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)} className="mt-2 text-sm text-red-600 hover:underline">Ler Evangelho completo...</button>
-              )}
-            </div>
-        </section>
-        
-        {/* Bottom Ad */}
-        <AdBanner />
 
-        {/* Floating Action Button for Liturgy (Mobile Friendly) */}
-        {liturgyData.gospelBody && (
-             <div className="fixed bottom-20 right-4 z-40">
-                <button 
-                onClick={() => toggleSaveItem(liturgyData)}
-                className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
-                    isSaved(liturgyData.id) 
-                    ? 'bg-green-600 text-white' 
-                    : 'bg-blue-600 text-white'
-                }`}
-                aria-label={isSaved(liturgyData.id) ? "Remover dos salvos" : "Salvar offline"}
-                >
-                {isSaved(liturgyData.id) ? <BookmarkIcon filled /> : <SaveIcon />}
-                </button>
+            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Primeira Leitura</h3>
+                {liturgyData.firstReadingBody && (
+                    <button 
+                        onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)}
+                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                    >
+                        <MaximizeIcon className="w-5 h-5" />
+                    </button>
+                )}
             </div>
-        )}
-      </div>
+            
+                <>
+                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.firstReadingRef || "..."}</p>
+                <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                    {liturgyData.firstReadingBody || (loading ? "Carregando..." : "Sem conteúdo.")}
+                </div>
+                {liturgyData.firstReadingBody && (
+                    <button onClick={() => openReader(liturgyData.firstReadingRef, liturgyData.firstReadingBody, "Primeira Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
+                )}
+                </>
+            </section>
+
+            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Salmo Responsorial</h3>
+                {liturgyData.psalmBody && (
+                    <button 
+                        onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)}
+                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                    >
+                        <MaximizeIcon className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+                <>
+                    <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.psalmRef}</p>
+                    <div className={`reading-text ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                        {liturgyData.psalmBody 
+                            ? renderPsalmContent(liturgyData.psalmBody) 
+                            : <span className="text-slate-500 italic">{loading ? "Carregando..." : "..."}</span>
+                        }
+                    </div>
+                    {liturgyData.psalmBody && (
+                    <button onClick={() => openReader(liturgyData.psalmRef, liturgyData.psalmBody, "Salmo Responsorial", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
+                )}
+                </>
+            </section>
+
+            {liturgyData.secondReadingBody && (
+            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="mb-4 pb-2 border-b border-amber-100 flex justify-between items-center">
+                <h3 className="text-amber-700 font-bold uppercase tracking-wide text-sm">Segunda Leitura</h3>
+                {liturgyData.secondReadingBody && (
+                    <button 
+                        onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)}
+                        className="text-amber-600 hover:bg-amber-50 p-1 rounded transition-colors" title="Expandir"
+                    >
+                        <MaximizeIcon className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+            
+                <>
+                <p className="text-slate-500 text-sm font-medium mb-2">{liturgyData.secondReadingRef || ""}</p>
+                <div className={`reading-text text-slate-800 whitespace-pre-wrap line-clamp-[10] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                    {liturgyData.secondReadingBody || ""}
+                </div>
+                {liturgyData.secondReadingBody && (
+                    <button onClick={() => openReader(liturgyData.secondReadingRef || "Segunda Leitura", liturgyData.secondReadingBody || "", "Segunda Leitura", liturgyData)} className="mt-2 text-sm text-amber-600 hover:underline">Ler tudo...</button>
+                )}
+                </>
+            </section>
+            )}
+
+            <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-12 -mt-12 z-0"></div>
+            <div className="mb-4 pb-2 border-b border-red-100 relative z-10 flex justify-between items-center">
+                <h3 className="text-red-800 font-bold uppercase tracking-wide text-sm">Evangelho</h3>
+                {liturgyData.gospelBody && (
+                    <button 
+                        onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)}
+                        className="text-red-600 hover:bg-red-50 p-1 rounded transition-colors" title="Expandir"
+                    >
+                        <MaximizeIcon className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+            
+                <div className="relative z-10">
+                    <p className="text-red-600 text-sm font-bold mb-4">{liturgyData.gospelRef}</p>
+                    <div className={`reading-text text-slate-900 whitespace-pre-wrap line-clamp-[12] ${getFontSizeClass(fontSizeLevel)} ${getLineHeightClass(fontSizeLevel)}`}>
+                        {liturgyData.gospelBody || (loading ? "Carregando..." : "...")}
+                    </div>
+                    {liturgyData.gospelBody && (
+                    <button onClick={() => openReader(liturgyData.gospelRef, liturgyData.gospelBody, "Evangelho", liturgyData)} className="mt-2 text-sm text-red-600 hover:underline">Ler Evangelho completo...</button>
+                )}
+                </div>
+            </section>
+            
+            {liturgyData.gospelBody && (
+                <div className="fixed bottom-20 right-4 z-40">
+                    <button 
+                    onClick={() => toggleSaveItem(liturgyData)}
+                    className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
+                        isSaved(liturgyData.id) 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-blue-600 text-white'
+                    }`}
+                    aria-label={isSaved(liturgyData.id) ? "Remover dos salvos" : "Salvar offline"}
+                    >
+                    {isSaved(liturgyData.id) ? <BookmarkIcon filled /> : <SaveIcon />}
+                    </button>
+                </div>
+            )}
+        </div>
+      )}
+      
+      <AdBanner />
     </div>
   );
 
   const PrayersView = () => (
     <div className="space-y-4 pb-24">
-      {/* Top Ad in Prayers */}
       <AdBanner />
-      
       {PRAYERS_DATA.map((prayer, index) => (
         <React.Fragment key={prayer.id}>
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 hover:border-amber-200 transition-colors">
@@ -608,7 +601,6 @@ export default function App() {
                     {isSaved(prayer.id) ? <BookmarkIcon filled className="w-5 h-5"/> : <SaveIcon className="w-5 h-5"/>}
                 </button>
             </div>
-            {/* Preview of content (stripped of tags for preview) */}
             <div className="text-slate-500 leading-relaxed text-sm line-clamp-3 font-serif">
                 {prayer.content.replace(/<[^>]*>?/gm, ' ').substring(0, 150)}...
             </div>
@@ -621,8 +613,6 @@ export default function App() {
                 Ler oração completa
             </button>
             </div>
-            
-            {/* Insert ad after the 2nd prayer */}
             {index === 1 && <AdBanner />}
         </React.Fragment>
       ))}
@@ -651,7 +641,6 @@ export default function App() {
                     <h3 className="font-bold text-slate-800 text-lg">
                         {item.type === 'liturgy' ? `Liturgia de ${(item as LiturgyContent).date}` : (item as EucharisticPrayer).title}
                     </h3>
-                    {/* Exibir dia litúrgico nos salvos se disponível */}
                     {item.type === 'liturgy' && (item as LiturgyContent).liturgicalInfo && (
                        <p className="text-xs text-slate-500 mt-1 italic">
                            {(item as LiturgyContent).liturgicalInfo}
@@ -694,7 +683,6 @@ export default function App() {
           </div>
         ))
       )}
-      
       <AdBanner />
     </div>
   );
@@ -702,13 +690,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-amber-100 selection:text-amber-900">
       
-      {/* Install Help Modal */}
       {showInstallHelp && <InstallHelpModal />}
-
-      {/* Full Screen Reader Modal */}
       {focusedContent && <FullScreenReader />}
 
-      {/* Header */}
       <header className="bg-[#002366] text-white p-4 shadow-lg relative z-40">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -721,9 +705,7 @@ export default function App() {
              </div>
           </div>
           
-          {/* Main screen font controls and install button */}
           <div className="relative flex items-center gap-2">
-             {/* Install Button (Always visible if not standalone) */}
              {!isStandalone && (
                 <button 
                   onClick={handleInstallClick}
@@ -757,14 +739,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-2xl mx-auto p-4 mt-2">
         {activeTab === Tab.LITURGY && <LiturgyView />}
         {activeTab === Tab.PRAYERS && <PrayersView />}
         {activeTab === Tab.SAVED && <SavedView />}
       </main>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-40 pb-safe">
         <div className="max-w-2xl mx-auto flex justify-around items-center h-16">
           <button 
@@ -793,7 +773,6 @@ export default function App() {
         </div>
       </nav>
       
-      {/* Safe area padding for bottom nav */}
       <div className="h-6 w-full bg-white fixed bottom-0 z-30 sm:hidden"></div>
     </div>
   );
