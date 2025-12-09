@@ -1,0 +1,5 @@
+{
+  "name": "Católico na Missa",
+  "description": "Um aplicativo para leitura da liturgia diária e orações eucarísticas, com suporte a geração de conteúdo via IA e salvamento local para acesso rápido.",
+  "requestFramePermissions": []
+}
